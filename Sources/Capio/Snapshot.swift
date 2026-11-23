@@ -299,8 +299,22 @@ enum Snapshot {
         hidden?.isHidden = true
         defer { hidden?.isHidden = false }
         view.displayIfNeeded()
-        guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { throw SnapshotError("no rep") }
+        guard let rep = pixelScale > 1 ? sharpRep(for: view) : view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
+            throw SnapshotError("no rep")
+        }
         view.cacheDisplay(in: view.bounds, to: rep)
+        return rep
+    }
+
+    /// `CAPIO_SNAPSHOT_SCALE=2` draws every screen at Retina size, also on a Mac with a normal display (for the README pictures).
+    static let pixelScale = CGFloat(Double(ProcessInfo.processInfo.environment["CAPIO_SNAPSHOT_SCALE"] ?? "") ?? 1)
+
+    static func sharpRep(for view: NSView) -> NSBitmapImageRep? {
+        let b = view.bounds
+        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(b.width * pixelScale), pixelsHigh: Int(b.height * pixelScale),
+                                   bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                   colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)
+        rep?.size = b.size
         return rep
     }
 
