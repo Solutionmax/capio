@@ -90,13 +90,13 @@ let dot = pixel(ctx, 142, 25)
 check(dot.2 > 200 && dot.0 < 140, "number disc is indigo (got \(dot))")
 let digitWhite = (-5...5).contains { dx in (-5...5).contains { dy in let q = pixel(ctx, 150 + dx, 25 + dy); return q.0 > 230 && q.1 > 230 && q.2 > 230 } }
 check(digitWhite, "number shows a white digit inside the disc")
-check(AnnotationRenderer.textBounds("Dit bedrag klopt niet", at: CGPoint(x: 5, y: 5)).width > 150, "text has a measurable width")
+check(AnnotationRenderer.textBounds("This amount is wrong", at: CGPoint(x: 5, y: 5)).width > 150, "text has a measurable width")
 
 // MARK: history
 let dir = FileManager.default.temporaryDirectory.appendingPathComponent("capio-selftest-\(UUID().uuidString)")
 let index = dir.appendingPathComponent("history.json")
 let t0 = Date(timeIntervalSince1970: 1_795_000_000)
-let older = CaptureRecord(fileName: "Capio a.png", kind: .screenshot, createdAt: t0, bytes: 1000, pixelWidth: 10, pixelHeight: 10, ocrText: "Factuur Nordhaven")
+let older = CaptureRecord(fileName: "Capio a.png", kind: .screenshot, createdAt: t0, bytes: 1000, pixelWidth: 10, pixelHeight: 10, ocrText: "Invoice Nordhaven")
 let newer = CaptureRecord(fileName: "Capio b.mp4", kind: .screencast, createdAt: t0.addingTimeInterval(60), bytes: 5000, pixelWidth: 10, pixelHeight: 10, duration: 48)
 do {
     let store = HistoryStore(indexURL: index)

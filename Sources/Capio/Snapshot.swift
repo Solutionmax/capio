@@ -36,7 +36,7 @@ enum Snapshot {
             Annotation(tool: .obfuscate, color: Palette.indigo, points: [CGPoint(x: 272, y: 293), CGPoint(x: 410, y: 319)]),
             Annotation(tool: .rectangle, color: Palette.indigo, points: [CGPoint(x: 598, y: 330), CGPoint(x: 696, y: 362)]),
             Annotation(tool: .arrow, color: Palette.indigo, points: [CGPoint(x: 440, y: 390), CGPoint(x: 594, y: 352)]),
-            Annotation(tool: .text, color: Palette.indigo, points: [CGPoint(x: 300, y: 392)], text: "Dit bedrag klopt niet"),
+            Annotation(tool: .text, color: Palette.indigo, points: [CGPoint(x: 300, y: 392)], text: "This amount is wrong"),
             Annotation(tool: .number, color: Palette.indigo, points: [CGPoint(x: 598, y: 330)], number: 1),
             Annotation(tool: .number, color: Palette.indigo, points: [CGPoint(x: 384, y: 211)], number: 2),
         ]
@@ -78,7 +78,7 @@ enum Snapshot {
         try save(try await render(ToastView(model: Toast.shared)), dir, "5-toast-saved")
         Toast.shared.demo(.uploading(.screenshot, 0.64), thumbnail: thumb)
         try save(try await render(ToastView(model: Toast.shared)), dir, "5-toast-uploading")
-        Toast.shared.demo(.link("https://files.example.net/v/b5xtyw34ww"), thumbnail: thumb)
+        Toast.shared.demo(.link("https://files.example.net/v/k3x9m2p7qa"), thumbnail: thumb)
         try save(try await render(ToastView(model: Toast.shared)), dir, "6-toast-link")
         Toast.shared.demo(.error("Upload failed", "Amfora answered 401: Invalid API key. The file is saved and on your clipboard."), thumbnail: nil)
         try save(try await render(ToastView(model: Toast.shared)), dir, "7-toast-error")
@@ -241,20 +241,20 @@ enum Snapshot {
         NSBezierPath(roundedRect: NSRect(x: 178, y: 168, width: 324, height: 68), xRadius: 12, yRadius: 12).fill()
         NSBezierPath(roundedRect: NSRect(x: 518, y: 168, width: 324, height: 68), xRadius: 12, yRadius: 12).fill()
         text("Outstanding", 11.5, .regular, NSColor(white: 0.45, alpha: 1), at: CGPoint(x: 192, y: 180))
-        text("€ 3.131,50", 22, .bold, NSColor(white: 0.08, alpha: 1), at: CGPoint(x: 192, y: 195))
+        text("€ 3,131.50", 22, .bold, NSColor(white: 0.08, alpha: 1), at: CGPoint(x: 192, y: 195))
         text("1 overdue", 11.5, .semibold, NSColor(srgbRed: 0.7, green: 0.14, blue: 0.1, alpha: 1), at: CGPoint(x: 318, y: 205))
         text("Paid in November", 11.5, .regular, NSColor(white: 0.45, alpha: 1), at: CGPoint(x: 532, y: 180))
-        text("€ 4.090,00", 22, .bold, NSColor(white: 0.08, alpha: 1), at: CGPoint(x: 532, y: 195))
+        text("€ 4,090.00", 22, .bold, NSColor(white: 0.08, alpha: 1), at: CGPoint(x: 532, y: 195))
 
         let cols: [CGFloat] = [178, 278, 478, 568, 710]
         for (i, head) in ["INVOICE", "CLIENT", "DATE", "AMOUNT", "STATUS"].enumerated() {
             text(head, 11, .semibold, NSColor(white: 0.45, alpha: 1), at: CGPoint(x: i == 3 ? 636 : cols[i], y: 264))
         }
-        let rows = [("INV 2041", "Brightline Studio", "18 Nov", "€ 1.240,00", "Paid"),
-                    ("INV 2042", "Nordhaven BV", "19 Nov", "€ 2.850,00", "Open"),
-                    ("INV 2043", "Casa Lumen", "20 Nov", "€ 467,50", "Overdue"),
-                    ("INV 2044", "Kestrel Labs", "21 Nov", "€ 980,00", "Draft"),
-                    ("INV 2045", "Halvar & Co", "21 Nov", "€ 1.725,00", "Draft")]
+        let rows = [("INV 2041", "Brightline Studio", "18 Nov", "€ 1,240.00", "Paid"),
+                    ("INV 2042", "Nordhaven Ltd", "19 Nov", "€ 2,850.00", "Open"),
+                    ("INV 2043", "Casa Lumen", "20 Nov", "€ 467.50", "Overdue"),
+                    ("INV 2044", "Kestrel Labs", "21 Nov", "€ 980.00", "Draft"),
+                    ("INV 2045", "Halvar & Co", "21 Nov", "€ 1,725.00", "Draft")]
         for (i, r) in rows.enumerated() {
             let y = 286 + CGFloat(i) * 40
             NSColor(white: 0.93, alpha: 1).setFill()
