@@ -13,6 +13,8 @@ final class CaptureController: OverlayDelegate {
     var onRecordingTick: ((String?) -> Void)?
 
     var isRecording: Bool { session != nil }
+    /// Selecting or recording: no update window or restart in between.
+    var isBusy: Bool { session != nil || starting || !windows.isEmpty }
 
     init(library: Library, openSettings: @escaping () -> Void) {
         self.library = library

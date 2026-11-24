@@ -95,7 +95,7 @@ final class HotKeys {
     }
 
     /// True for macOS's own shortcuts that are switched on (screenshots, Spotlight, Mission Control and so on).
-    /// ponytail: macOS does not tell which keys other apps hold, so only Capio's own and the system's are checked.
+    /// Limit: macOS does not tell which keys other apps hold, so only Capio's own and the system's are checked.
     static func usedBySystem(_ s: Shortcut) -> Bool {
         var out: Unmanaged<CFArray>?
         guard CopySymbolicHotKeys(&out) == noErr, let list = out?.takeRetainedValue() as? [[String: Any]] else { return false }
@@ -214,6 +214,21 @@ enum Prefs {
         static let videoRate = "videoRate"
         static let gifWidth = "gifWidth"
         static let gifRate = "gifRate"
+        static let autoCheck = "autoCheck"
+        static let autoInstall = "autoInstall"
+    }
+
+    /// Updates: look when Capio starts and once a day (on until switched off), and ask before installing (until switched on).
+    static var autoCheck: Bool { defaults.object(forKey: Key.autoCheck) as? Bool ?? true }
+    static var autoInstall: Bool { defaults.bool(forKey: Key.autoInstall) }
+    static var lastUpdateCheck: Date? {
+        get { defaults.object(forKey: "lastUpdateCheck") as? Date }
+        set { defaults.set(newValue, forKey: "lastUpdateCheck") }
+    }
+    /// The version the user chose Skip This Version for; the one after it is offered again.
+    static var skippedVersion: String? {
+        get { defaults.string(forKey: "skippedVersion") }
+        set { defaults.set(newValue, forKey: "skippedVersion") }
     }
 
     // Nothing stored means what Capio always did: PNG at Retina, video as large as the area at 30.
@@ -238,7 +253,7 @@ enum Prefs {
     /// Snapshot runs keep their files apart from the real ones.
     static let dataDir = ProcessInfo.processInfo.environment["CAPIO_DATA_DIR"].map { URL(fileURLWithPath: $0, isDirectory: true) }
 
-    // ponytail: records keep only a file name, so captures made before a folder change are looked up in the new folder.
+    // Limit: records keep only a file name, so captures made before a folder change are looked up in the new folder.
     static var folder: URL {
         get {
             if let dataDir { return dataDir.appendingPathComponent("Captures", isDirectory: true) }

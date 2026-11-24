@@ -30,9 +30,14 @@ struct HistoryView: View {
     @State private var filter: Filter = .all
     @State private var sort: Sort = .date
 
+    /// Only captures still in the folder. Hidden, not forgotten: a file put back (Trash, other folder, drive) shows again,
+    /// and a link on a hidden capture still comes down after its week.
+    // Limit: one stat per capture per render, fine for thousands; a folder watcher if the popover ever stays open.
+    private var onDisk: [CaptureRecord] { library.records.filter(library.exists) }
+
     private var items: [CaptureRecord] {
         let kind: CaptureKind? = { if case .kind(let k) = filter { return k }; return nil }()
-        let found = HistoryStore.filter(library.records, kind: kind, query: query)
+        let found = HistoryStore.filter(onDisk, kind: kind, query: query)
         return sort == .size ? found.sorted { $0.bytes > $1.bytes } : found
     }
 
@@ -69,7 +74,7 @@ struct HistoryView: View {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible())], spacing: 10) {
                         ForEach(items) { r in
-                            Tile(record: r, url: library.url(for: r), missing: !library.exists(r))
+                            Tile(record: r, url: library.url(for: r))
                                 .onTapGesture(count: 2) { actions.open(r) }
                                 .contextMenu { menu(for: r) }
                         }
@@ -92,8 +97,9 @@ struct HistoryView: View {
     }
 
     private var summary: String {
-        let online = library.records.filter { $0.link != nil }.count
-        return "\(library.records.count) captures · \(online) online"
+        let shown = onDisk
+        let online = shown.filter { $0.link != nil }.count
+        return "\(shown.count) captures · \(online) online"
     }
 
     private var empty: some View {
@@ -134,7 +140,6 @@ struct HistoryView: View {
 struct Tile: View {
     let record: CaptureRecord
     let url: URL
-    let missing: Bool
     @State private var image: NSImage?
     @State private var hover = false
     @State private var when = ""
@@ -156,8 +161,6 @@ struct Tile: View {
                 .overlay {
                     if let image {
                         Image(nsImage: image).resizable().scaledToFill()
-                    } else if missing {
-                        Label("File moved", systemImage: "questionmark.folder").font(.system(size: 11)).foregroundStyle(.secondary)
                     }
                 }
                 .overlay {

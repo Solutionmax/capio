@@ -1,5 +1,6 @@
 import CapioCore
 import CoreGraphics
+import CryptoKit
 import Foundation
 import ImageIO
 
@@ -251,6 +252,94 @@ let wins = [CGRect(x: 100, y: 100, width: 300, height: 200), CGRect(x: 0, y: 50,
 check(SelectionMath.pick(windows: wins, at: CGPoint(x: 150, y: 150), in: screen) == wins[0], "click takes the front window")
 check(SelectionMath.pick(windows: wins, at: CGPoint(x: 50, y: 400), in: screen) == CGRect(x: 0, y: 50, width: 900, height: 550), "window is cut to the screen")
 check(SelectionMath.pick(windows: wins, at: CGPoint(x: 950, y: 10), in: screen) == screen, "no window means the whole screen")
+
+// MARK: updates
+check(Updater.isNewer("0.7.1", than: "0.7.0") && !Updater.isNewer("0.7.0", than: "0.7.0") && !Updater.isNewer("0.6.9", than: "0.7.0"), "update: only a higher version counts")
+check(Updater.isNewer("0.10.0", than: "0.9.9"), "update: versions compare as numbers")
+check(Updater.isNewer("0.7.0", than: "0.7.0-beta.2") && Updater.isNewer("0.7.0-beta.2", than: "0.7.0-beta.1") && !Updater.isNewer("0.7.0-beta.9", than: "0.7.0"), "update: a release beats its betas")
+check(Updater.allowed(URL(string: "https://github.com/x")!) && Updater.allowed(URL(string: "http://192.168.1.5/f")!), "update: https anywhere, http at home")
+check(!Updater.allowed(URL(string: "http://example.org/f")!) && !Updater.allowed(URL(string: "http://192.168.example.org/f")!) && !Updater.allowed(URL(fileURLWithPath: "/tmp/f")), "update: no plain http outside, no files")
+let feedText = #"{"version":"0.7.1","notes":["One","Two"],"url":"https://github.com/Solutionmax/capio/releases/download/v0.7.1/Capio-0.7.1.zip","signature":"c2ln","size":2100000}"#
+let feedInfo = Updater.parse(Data(feedText.utf8))
+check(feedInfo?.version == "0.7.1" && feedInfo?.notes == ["One", "Two"] && feedInfo?.size == 2_100_000 && feedInfo?.archive.lastPathComponent == "Capio-0.7.1.zip", "update: feed read")
+check(Updater.parse(Data(feedText.replacingOccurrences(of: "https://github.com", with: "http://evil.example").utf8)) == nil, "update: feed with a plain http download refused")
+check(Updater.parse(Data(feedText.replacingOccurrences(of: "\"signature\"", with: "\"sig\"").utf8)) == nil, "update: feed without a signature refused")
+check(Updater.parse(Data("<html>not found</html>".utf8)) == nil && Updater.parse(Data(count: 300_000)) == nil, "update: a page or a huge answer is no feed")
+let releaseKey = Curve25519.Signing.PrivateKey(), otherKey = Curve25519.Signing.PrivateKey()
+let archive = Data("the zip".utf8)
+let goodSignature = try! releaseKey.signature(for: archive).base64EncodedString()
+check(Updater.verify(archive, signature: goodSignature + "\n", key: releaseKey.publicKey), "update: archive signed with the release key passes")
+check(!Updater.verify(archive + Data([0]), signature: goodSignature, key: releaseKey.publicKey), "update: a changed archive fails")
+check(!Updater.verify(archive, signature: goodSignature, key: otherKey.publicKey), "update: another key fails")
+check(!Updater.verify(archive, signature: "bm9wZQ==", key: releaseKey.publicKey) && !Updater.verify(archive, signature: "", key: releaseKey.publicKey), "update: something that is no signature fails")
+let keyText = releaseKey.publicKey.rawRepresentation.base64EncodedString()
+let nextPlist: [String: Any] = ["CFBundleIdentifier": "net.solutionmax.capio", "CFBundleShortVersionString": "0.7.1",
+                                "CapioUpdateFeed": "https://example.org/capio-update.json", "CapioUpdatePublicKey": keyText]
+func accepted(_ change: (inout [String: Any]) -> Void = { _ in }, current: String = "0.7.0") -> String? {
+    var plist = nextPlist
+    change(&plist)
+    return Updater.accepts(plist as NSDictionary, bundleIdentifier: "net.solutionmax.capio", newerThan: current, key: releaseKey.publicKey)
+}
+check(accepted() == "0.7.1", "update: Capio's own newer app accepted")
+check(accepted(current: "0.7.1") == nil && accepted(current: "0.8.0") == nil, "update: same or older version refused")
+check(accepted { $0["CFBundleIdentifier"] = "com.example.other" } == nil, "update: another app refused")
+check(accepted { $0["CapioUpdatePublicKey"] = otherKey.publicKey.rawRepresentation.base64EncodedString() } == nil, "update: an app that trusts another key refused")
+check(accepted { $0["CapioUpdateFeed"] = nil } == nil, "update: an app without a feed refused")
+
+// The system's own Calculator stands in for a signed app: it meets its own requirement and not Capio's.
+let calculator = URL(fileURLWithPath: "/System/Applications/Calculator.app")
+if let own = Updater.requirement(ofApp: calculator) {
+    check(Updater.signed(calculator, satisfying: own), "update: an app meets its own signing requirement")
+    check(!Updater.signed(calculator, satisfying: #"identifier "net.solutionmax.capio""#), "update: an app signed as something else refused")
+    check(!Updater.signed(URL(fileURLWithPath: "/tmp"), satisfying: own), "update: a folder that is no app refused")
+} else { check(false, "update: no signing requirement read from Calculator") }
+
+// The install script, for real, on folders of its own.
+do {
+    let fm = FileManager.default
+    let root = fm.temporaryDirectory.appendingPathComponent("capio-selftest-\(UUID().uuidString)")
+    defer { try? fm.removeItem(at: root) }
+    let target = root.appendingPathComponent("Capio (1).app"), staged = Updater.staged(for: target)
+    let old = URL(fileURLWithPath: target.path + ".capio-old")
+    func bundle(_ url: URL, mark: String) throws {
+        try fm.createDirectory(at: url.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        try (["CFBundleExecutable": "Capio"] as NSDictionary).write(to: url.appendingPathComponent("Contents/Info.plist"))
+        try mark.write(to: url.appendingPathComponent("mark"), atomically: true, encoding: .utf8)
+    }
+    func mark() -> String? { try? String(contentsOf: target.appendingPathComponent("mark"), encoding: .utf8) }
+    func leftovers() -> [String] { ((try? fm.contentsOfDirectory(atPath: root.path)) ?? []).filter { $0 != target.lastPathComponent }.sorted() }
+    func install(relaunch: Bool) {
+        let gone = Process()
+        gone.executableURL = URL(fileURLWithPath: "/usr/bin/true")
+        try! gone.run(); gone.waitUntilExit()
+        let script = Updater.installScript(replacing: target, pid: gone.processIdentifier, relaunch: relaunch, open: "/usr/bin/true",
+                                           settle: 1, lock: root.appendingPathComponent("lock").path)
+        let sh = Process()
+        sh.executableURL = URL(fileURLWithPath: "/bin/sh"); sh.arguments = ["-c", script]
+        try! sh.run(); sh.waitUntilExit()
+    }
+    try bundle(target, mark: "old")
+    try bundle(staged, mark: "new")
+    install(relaunch: false)
+    check(mark() == "new", "update: install on quit puts the new app in place")
+    check(leftovers().isEmpty, "update: old copy, staged copy and lock are gone afterwards: \(leftovers())")
+    // Nothing starts here (open is /usr/bin/true), so the relaunch never shows up and the working copy must come back.
+    try bundle(staged, mark: "broken")
+    install(relaunch: true)
+    check(mark() == "new" && leftovers().isEmpty, "update: an app that does not start is rolled back: \(leftovers())")
+    // The staged copy vanished (cleaned up, disk trouble): the running app stays as it is.
+    install(relaunch: false)
+    check(mark() == "new" && leftovers().isEmpty, "update: without a staged copy nothing is touched")
+    // A run that was killed between the two renames left only the old copy: the next run puts it back.
+    try fm.moveItem(at: target, to: old)
+    install(relaunch: false)
+    check(mark() == "new" && leftovers().isEmpty, "update: an old copy without an app is put back")
+    // Another install holds the lock: this one steps aside and leaves the app alone.
+    try fm.createDirectory(at: root.appendingPathComponent("lock"), withIntermediateDirectories: true)
+    try bundle(staged, mark: "second")
+    install(relaunch: false)
+    check(mark() == "new" && fm.fileExists(atPath: staged.path), "update: a second install waits its turn")
+} catch { check(false, "update: install test could not set up: \(error)") }
 
 print("capio-selftest: \(checks) checks passed")
 

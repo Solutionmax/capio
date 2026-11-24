@@ -37,18 +37,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { self?.library.removeExpiredLinks() }
         }
         Task { [weak self] in
-            // ponytail: hourly is plenty for a week long link; Amfora ends the share itself even when this Mac sleeps.
+            // Limit: hourly is plenty for a week long link; Amfora ends the share itself even when this Mac sleeps.
             while let self, !Task.isCancelled {
                 self.library.removeExpiredLinks()
                 try? await Task.sleep(nanoseconds: 3_600 * 1_000_000_000)
             }
         }
         Toast.shared.onShowInFinder = { [weak self] r in self?.reveal(r) }
+        UpdateController.shared.isBusy = { [weak self] in self?.capture.isBusy ?? false }
+        UpdateController.shared.start()
 
         if !UserDefaults.standard.bool(forKey: "welcomed") {
             UserDefaults.standard.set(true, forKey: "welcomed")
             Toast.shared.showInfo("Capio is in your menu bar", detail: "Press ⌃⌘2 and drag to capture an area. Captures stay on this Mac; right click one in the menu for a link.")
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        UpdateController.shared.willTerminate()
     }
 
     /// An accessory app has no menu bar of its own; without an Edit menu ⌘V, ⌘C and ⌘A do nothing in text fields.
@@ -112,7 +118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             for action in ShortcutAction.allCases {
                 let item = menu.addItem(withTitle: action.menuTitle, action: #selector(menuRun(_:)), keyEquivalent: "")
                 item.representedObject = action.rawValue
-                // ponytail: keys with a name (F5, arrows) run fine but are not shown in the menu.
+                // Limit: keys with a name (F5, arrows) run fine but are not shown in the menu.
                 // ⌘, and ⌘Q belong to Settings and Quit further down.
                 if let s = shortcuts[action], let key = s.label == "Space" ? " " : s.label.count == 1 ? s.label.lowercased() : nil,
                    !(s.modifiers == Shortcut.command && [",", "q"].contains(key)) {
@@ -122,6 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             menu.addItem(.separator())
             menu.addItem(withTitle: "Open Capio Folder", action: #selector(menuFolder), keyEquivalent: "")
+            menu.addItem(withTitle: "Check for Updates…", action: #selector(menuUpdates), keyEquivalent: "")
             menu.addItem(.separator())
             menu.addItem(withTitle: "Settings…", action: #selector(menuSettings), keyEquivalent: ",")
             menu.addItem(withTitle: "Quit Capio", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -135,6 +142,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             popover.performClose(nil)
         } else if let button = statusItem.button {
             NSApp.activate()
+            // The folder may have changed while the popover was closed (Finder, Terminal): look again.
+            library.objectWillChange.send()
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }
     }
@@ -151,6 +160,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc private func menuFolder() { openFolder() }
     @objc private func menuSettings() { showSettings() }
+    @objc private func menuUpdates() { UpdateController.shared.checkNow() }
 
     /// Opens the settings, on `tab` when the caller needs a specific pane.
     func showSettings(_ tab: SettingsTab? = nil) {

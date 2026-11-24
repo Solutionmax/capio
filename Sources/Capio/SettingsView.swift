@@ -80,6 +80,9 @@ private struct GeneralPane: View {
     @State private var loginItem = SMAppService.mainApp.status == .enabled
     @State private var screenOK = ScreenGrabber.hasPermission
     @State private var problem = ""
+    @ObservedObject private var updates = UpdateController.shared
+    @AppStorage(Prefs.Key.autoCheck) private var autoCheck = true
+    @AppStorage(Prefs.Key.autoInstall) private var autoInstall = false
 
     var body: some View {
         Form {
@@ -110,8 +113,21 @@ private struct GeneralPane: View {
                         }
                     }
                 }
-                LabeledContent("Version") {
-                    Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development build")
+            }
+            Section("Updates") {
+                Toggle(isOn: $autoCheck) {
+                    Text("Check for updates automatically")
+                    Text("When Capio starts and once a day")
+                }
+                Toggle(isOn: $autoInstall) {
+                    Text("Install updates automatically")
+                    Text(autoInstall ? "On: Capio installs a new version when you are not capturing" : "Off: Capio asks first")
+                }
+                LabeledContent {
+                    Button("Check Now") { updates.checkNow() }
+                } label: {
+                    Text("Version \(updates.current)")
+                    Text(updates.status)
                 }
             }
         }

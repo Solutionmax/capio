@@ -91,6 +91,19 @@ enum Snapshot {
         try save(try await render(HistoryView(library: library, actions: actions), settle: 1.5), dir, "8-history")
         try await settingsWindow(into: dir)
 
+        Toast.shared.demo(.updated("0.7.1"), thumbnail: nil)
+        try save(try await render(ToastView(model: Toast.shared)), dir, "11-toast-updated")
+        let update = UpdateInfo(version: "0.7.1", notes: ["Captures you throw away in Finder leave the overview right away.",
+                                                           "GIFs longer than a minute no longer stutter at the end."],
+                                archive: URL(fileURLWithPath: "/"), signature: "", size: 2_100_000)
+        let phases: [(String, UpdateController.Phase)] = [("available", .available(update)), ("downloading", .downloading(update, 0.62)),
+                                                          ("ready", .ready(update)), ("uptodate", .upToDate),
+                                                          ("failed", .failed("Could not check for updates", UpdateFailure.unavailable.localizedDescription))]
+        for (name, phase) in phases {
+            UpdateController.shared.demo(phase)
+            try save(try await render(UpdateView(model: UpdateController.shared)), dir, "11-update-\(name)")
+        }
+
         let recording = RecordingModel(kind: .screencast)
         recording.elapsed = 12
         recording.level = 0.6
@@ -351,6 +364,9 @@ enum Snapshot {
                                      pixelWidth: exported.width, pixelHeight: exported.height)
             try store.add(seed.1.map { base.uploaded(link: $0, fileId: "f\(i)", shareId: "s\(i)") } ?? base)
         }
+        // Thrown away in Finder: must not show in 8-history (footer stays "4 captures · 2 online").
+        try store.add(CaptureRecord(fileName: "Capio gone.png", kind: .screenshot, createdAt: now, bytes: 1,
+                                    pixelWidth: exported.width, pixelHeight: exported.height))
     }
 }
 

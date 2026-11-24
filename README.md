@@ -66,7 +66,10 @@ share and the file from Amfora again; the capture stays on your Mac.
 - **GIFs** at the width and the frames a second you choose.
 - **History** in the menu bar: search (also the text inside screenshots), filter, pin a picture on screen.
 - **Links from your own server**, made only when you ask, gone again after 7 days.
-- **No account and no cloud of ours.** Capio talks to your Mac and to the Amfora you name, nothing else.
+- **Updates in the app.** Capio looks for a new version when it starts and once a day, shows what is new and asks
+  before it installs. A download is only installed when it carries Capio's own signature.
+- **No account and no cloud of ours.** Capio talks to your Mac, to the Amfora you name, and to GitHub for updates
+  (switch that off in Settings, General).
 
 ## Shortcuts
 
@@ -90,6 +93,9 @@ All five can be changed in Settings, Shortcuts.
    Recording). The microphone and the camera are only asked for when you turn them on.
 
 Needs macOS 15 or later, on Apple silicon or Intel.
+
+From 0.7.0 on Capio updates itself: a window says a new version is out, **Install Update** downloads it, checks
+it and opens Capio again. Screen Recording stays allowed. Coming from 0.6, install 0.7.0 by hand one more time.
 
 ## Connect it to Amfora
 
@@ -116,8 +122,8 @@ Live upload check against an Amfora, with a full access key on stdin:
 ## Layout
 
 - `Sources/CapioCore`: geometry, annotations and their rendering, history index, Amfora client, quality choices,
-  icon. No AppKit.
-- `Sources/Capio`: the app (overlay, action bar, recorder, toast, history, settings, snapshot mode).
+  updater, icon. No AppKit.
+- `Sources/Capio`: the app (overlay, action bar, recorder, toast, history, settings, updates, snapshot mode).
 - `Sources/capio-selftest`: assert based checks (`swift run capio-selftest`).
 
 <p align="center">

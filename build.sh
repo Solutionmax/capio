@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Builds Capio.app (universal: Apple silicon and Intel) and zips it. Run on a Mac with Xcode.
-# Env: VERSION (default 0.6.1), CAPIO_SIGN_IDENTITY (default: ~/.capio-signing/identity; ad hoc when there is none).
+# Env: VERSION (default 0.7.0), CAPIO_SIGN_IDENTITY (default: ~/.capio-signing/identity; ad hoc when there is none).
 set -euo pipefail
 umask 022
 cd "$(dirname "$0")"
-VERSION="${VERSION:-0.6.1}"
+VERSION="${VERSION:-0.7.0}"
 APP="build/Capio.app"
+# The public half of the key that signs every update; the app only installs archives signed with it.
+UPDATE_KEY="HoKiQ4iyesiwgOv6doKw6TqQP98kPd8OUJY3m2q+HAk="
 ARCHS=(--arch arm64 --arch x86_64)
 
 echo "── self test ─────────────────────────────────────────────"
@@ -43,6 +45,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <key>LSUIElement</key><true/>
 <key>NSMicrophoneUsageDescription</key><string>Capio records your voice with a screencast when you turn the microphone on.</string>
 <key>NSCameraUsageDescription</key><string>Capio shows your webcam in a corner of a screencast when you turn it on.</string>
+<key>CapioUpdateFeed</key><string>https://github.com/Solutionmax/capio/releases/latest/download/capio-update.json</string>
+<key>CapioUpdatePublicKey</key><string>${UPDATE_KEY}</string>
 <key>NSHumanReadableCopyright</key><string>Capio ${VERSION} · SolutionMAX</string>
 </dict></plist>
 PLIST

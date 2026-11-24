@@ -12,6 +12,7 @@ final class Toast: ObservableObject {
         case link(String)
         case saved(String, String)
         case info(String, String)
+        case updated(String)
         case error(String, String)
     }
 
@@ -56,6 +57,13 @@ final class Toast: ObservableObject {
         thumbnail = nil
         record = nil
         present(.info(title, detail), hideAfter: 5)
+    }
+
+    /// After an update put Capio back: the new version, and a way to the release notes.
+    func showUpdated(version: String) {
+        thumbnail = nil
+        record = nil
+        present(.updated(version), hideAfter: 10)
     }
 
     func showWorking(_ title: String) {
@@ -164,6 +172,11 @@ struct ToastView: View {
                 actions(link)
             } else if case .saved = model.phase, model.record != nil {
                 savedActions
+            } else if case .updated(let version) = model.phase {
+                ToastButton(title: "What's New") {
+                    model.hide()
+                    if let url = URL(string: "https://github.com/Solutionmax/capio/releases/tag/v\(version)") { NSWorkspace.shared.open(url) }
+                }
             }
         }
         .padding(12)
@@ -197,6 +210,9 @@ struct ToastView: View {
         case .saved(let title, let detail), .info(let title, let detail):
             Text(title).font(.system(size: 14, weight: .semibold))
             Text(detail).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        case .updated(let version):
+            Text("Capio is updated to \(version)").font(.system(size: 14, weight: .semibold))
+            Text("Your captures and settings are where you left them.").font(.system(size: 12)).foregroundStyle(.secondary)
         case .error(let title, let detail):
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.triangle.fill").symbolRenderingMode(.palette).foregroundStyle(Color.white, Color.orange)
