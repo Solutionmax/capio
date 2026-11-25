@@ -194,6 +194,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             upload: { [weak self] r in
                 guard let self else { return }
                 if Prefs.amfora == nil { self.showSettings(.sharing); return }
+                // The overview sits above the notification; close it so "Link copied" is not hidden behind it.
+                self.popover.performClose(nil)
                 self.library.upload(r, thumbnail: NSImage(contentsOf: self.library.url(for: r)))
             },
             pin: { [weak self] r in
