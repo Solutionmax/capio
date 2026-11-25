@@ -110,10 +110,37 @@ enum Snapshot {
         try save(try await render(RecordingBar(model: recording, mic: {}, camera: {}, pause: {}, stop: {})), dir, "10-recording-bar")
         try await checkGIF(into: dir)
         try checkFormats(exported, scale: scale, into: dir)
+        try await checkToastPanel(into: dir)
         try "ok \(Date())\n".write(to: dir.appendingPathComponent("DONE.txt"), atomically: true, encoding: .utf8)
     }
 
     /// The real settings window, toolbar and all, one picture per tab; the window must resize with the pane.
+    /// The real panel, first with a short text and then with a long one: the card has to stay 12 points under the
+    /// menu bar and the panel has to hold all of its content, also when the text grows while it is on screen.
+    static func checkToastPanel(into dir: URL) async throws {
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main else { throw SnapshotError("no screen") }
+        let bar = max(screen.frame.maxY - screen.visibleFrame.maxY, screen.safeAreaInsets.top, NSApp.mainMenu?.menuBarHeight ?? 0, ToastPlacement.minMenuBar)
+        let want = screen.frame.maxY - bar - ToastPlacement.gap + ToastPlacement.cardInset
+        var lines = ["screen \(screen.frame) menu bar \(bar) panel top wanted \(want)"]
+        var wrong: [String] = []
+        let steps: [(String, () -> Void)] = [
+            ("short", { Toast.shared.showInfo("Short", detail: "One line.") }),
+            ("long", { Toast.shared.showError("Upload failed", detail: "Amfora answered 401: Invalid API key. The file is saved and on your clipboard. Open Settings, Sharing, and paste a new key to try again.") }),
+            ("short again", { Toast.shared.showInfo("Short", detail: "One line.") }),
+        ]
+        for (name, show) in steps {
+            show()
+            try await Task.sleep(nanoseconds: 900_000_000)
+            guard let frame = Toast.shared.panelFrame, let fit = Toast.shared.panelFit else { throw SnapshotError("toast panel is not there") }
+            lines.append("\(name): top \(frame.maxY) height \(frame.height) content \(fit.height)")
+            if abs(frame.maxY - want) > 0.5 { wrong.append("\(name): top \(frame.maxY), wanted \(want)") }
+            if frame.height + 0.5 < fit.height { wrong.append("\(name): panel \(frame.height) high, content needs \(fit.height)") }
+        }
+        Toast.shared.hide()
+        try lines.joined(separator: "\n").write(to: dir.appendingPathComponent("13-toast-panel.txt"), atomically: true, encoding: .utf8)
+        guard wrong.isEmpty else { throw SnapshotError("toast panel: " + wrong.joined(separator: "; ")) }
+    }
+
     static func settingsWindow(into dir: URL) async throws {
         let (w, tabs) = SettingsWindow.make()
         w.setFrameOrigin(NSPoint(x: -20_000, y: -20_000))

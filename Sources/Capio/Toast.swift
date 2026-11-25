@@ -26,6 +26,10 @@ final class Toast: ObservableObject {
     private var panel: NSPanel?
     private var hideTask: Task<Void, Never>?
 
+    /// Where the panel is now and how much room its content asks for (snapshot run only).
+    var panelFrame: CGRect? { panel?.frame }
+    var panelFit: CGSize? { panel?.contentView?.fittingSize }
+
     private var isFinal: Bool {
         if case .uploading = phase { return false }
         return true
@@ -102,9 +106,11 @@ final class Toast: ObservableObject {
         hovering = false
         let p = panel ?? makePanel()
         panel = p
-        guard let host = p.contentView else { return }
+        // The view on screen only takes the new text in on the next pass, so its size is still that of the old text:
+        // a longer message would get the old, lower panel and lose its top under the menu bar. Measure a fresh one.
+        let size = NSHostingView(rootView: ToastView(model: self)).fittingSize
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main else { return }
-        let frame = ToastPlacement.frame(size: host.fittingSize, screen: screen.frame, visible: screen.visibleFrame,
+        let frame = ToastPlacement.frame(size: size, screen: screen.frame, visible: screen.visibleFrame,
                                          safeTop: screen.safeAreaInsets.top, menuBar: NSApp.mainMenu?.menuBarHeight ?? 0)
         if !p.isVisible || p.alphaValue < 1 {
             p.setFrame(frame.offsetBy(dx: 30, dy: 0), display: true)
