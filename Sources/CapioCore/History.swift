@@ -69,6 +69,17 @@ public struct CaptureRecord: Codable, Equatable, Identifiable, Sendable {
         return now.timeIntervalSince(uploadedAt ?? createdAt) >= Self.linkLifetime
     }
 
+    /// "6 days left", "3 hours left" for a capture with a link; nil without one. Rounded up, so a fresh link has 7 days.
+    public func linkTimeLeft(now: Date) -> String? {
+        guard link != nil else { return nil }
+        let left = Self.linkLifetime - now.timeIntervalSince(uploadedAt ?? createdAt)
+        guard left > 0 else { return "Ends soon" } // due; the hourly sweep takes it down
+        let hours = Int((left / 3_600).rounded(.up))
+        if hours < 24 { return hours == 1 ? "1 hour left" : "\(hours) hours left" }
+        let days = Int((left / 86_400).rounded(.up))
+        return days == 1 ? "1 day left" : "\(days) days left"
+    }
+
     public func withoutUpload() -> CaptureRecord {
         CaptureRecord(id: id, fileName: fileName, kind: kind, createdAt: createdAt, bytes: bytes,
                       pixelWidth: pixelWidth, pixelHeight: pixelHeight, duration: duration, ocrText: ocrText)
@@ -134,11 +145,12 @@ public final class HistoryStore {
         records.filter { $0.linkExpired(now: now) }
     }
 
-    /// Filter by kind and a free text query over the name, the link and the recognised text.
-    public static func filter(_ records: [CaptureRecord], kind: CaptureKind?, query: String) -> [CaptureRecord] {
+    /// Filter by kind, by having a public link, and a free text query over the name, the link and the recognised text.
+    public static func filter(_ records: [CaptureRecord], kind: CaptureKind?, query: String, publicOnly: Bool = false) -> [CaptureRecord] {
         let q = query.trimmingCharacters(in: .whitespaces)
         return records.filter { r in
             guard kind == nil || r.kind == kind else { return false }
+            guard !publicOnly || r.link != nil else { return false }
             guard !q.isEmpty else { return true }
             let hay = [r.fileName, r.link ?? "", r.ocrText ?? ""].joined(separator: "\n")
             return hay.range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) != nil

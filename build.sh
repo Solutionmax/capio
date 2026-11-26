@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Builds Capio.app (universal: Apple silicon and Intel) and zips it. Run on a Mac with Xcode.
-# Env: VERSION (default 0.7.2), CAPIO_SIGN_IDENTITY (default: ~/.capio-signing/identity; ad hoc when there is none).
+# Env: VERSION (default 0.7.3), CAPIO_SIGN_IDENTITY (default: ~/.capio-signing/identity; ad hoc when there is none).
 set -euo pipefail
 umask 022
 cd "$(dirname "$0")"
-VERSION="${VERSION:-0.7.2}"
+VERSION="${VERSION:-0.7.3}"
 APP="build/Capio.app"
 # The public half of the key that signs every update; the app only installs archives signed with it.
 UPDATE_KEY="HoKiQ4iyesiwgOv6doKw6TqQP98kPd8OUJY3m2q+HAk="

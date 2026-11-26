@@ -100,6 +100,9 @@ final class CanvasView: NSView, NSTextFieldDelegate {
     private var current: Annotation?
     private var drag: Drag = .none
     private var hoverWindow: CGRect?
+    /// The selection came from a click (a window or the whole screen), not from a drag. Dragging in it draws a new
+    /// selection instead of moving it: a picked screen fills everything, so there would be no place left to start one.
+    private var picked = false
     private var textField: NSTextField?
     private var textAnchor: CGPoint = .zero
     private var primary: OverlayAction = .capture
@@ -132,6 +135,7 @@ final class CanvasView: NSView, NSTextFieldDelegate {
     func clearSelection() {
         commitText()
         selection = nil
+        picked = false
         annotations = []
         tool = nil
         needsDisplay = true
@@ -246,7 +250,7 @@ final class CanvasView: NSView, NSTextFieldDelegate {
         guard let s = selection else { NSCursor.crosshair.set(); return }
         if tool != nil, s.contains(p) { (tool == .text ? NSCursor.iBeam : NSCursor.crosshair).set(); return }
         if let h = SelectionMath.handle(at: p, on: s) { cursor(for: h).set(); return }
-        (s.contains(p) ? NSCursor.openHand : NSCursor.crosshair).set()
+        (s.contains(p) && !(picked && annotations.isEmpty) ? NSCursor.openHand : NSCursor.crosshair).set()
     }
 
     private func cursor(for h: Handle) -> NSCursor {
@@ -271,8 +275,8 @@ final class CanvasView: NSView, NSTextFieldDelegate {
             return
         }
         if let s = selection {
-            if let h = SelectionMath.handle(at: p, on: s) { drag = .resizing(h); onLayoutChange?(); return }
-            if s.contains(p) { drag = .moving(p, s); NSCursor.closedHand.set(); onLayoutChange?(); return }
+            if let h = SelectionMath.handle(at: p, on: s) { picked = false; drag = .resizing(h); onLayoutChange?(); return }
+            if s.contains(p), !(picked && annotations.isEmpty) { drag = .moving(p, s); NSCursor.closedHand.set(); onLayoutChange?(); return }
             if !annotations.isEmpty { return } // keep the drawings: a stray click must not throw them away
         }
         selection = nil
@@ -306,8 +310,9 @@ final class CanvasView: NSView, NSTextFieldDelegate {
         let p = point(e)
         switch drag {
         case .selecting:
-            if let s = selection, s.width >= SelectionMath.minSize, s.height >= SelectionMath.minSize { break }
+            if let s = selection, s.width >= SelectionMath.minSize, s.height >= SelectionMath.minSize { picked = false; break }
             selection = SelectionMath.pick(windows: frozen.windows, at: p, in: bounds)
+            picked = true
         case .resizing:
             if let s = selection, s.width < SelectionMath.minSize || s.height < SelectionMath.minSize {
                 selection = CGRect(x: s.minX, y: s.minY, width: max(s.width, 20), height: max(s.height, 20)).intersection(bounds)
@@ -436,6 +441,7 @@ final class CanvasView: NSView, NSTextFieldDelegate {
         default: d = CGVector(dx: 0, dy: -step)
         }
         selection = SelectionMath.move(s, by: d, in: bounds)
+        picked = false
         needsDisplay = true
         onLayoutChange?()
     }
@@ -488,6 +494,7 @@ final class CanvasView: NSView, NSTextFieldDelegate {
     /// Snapshot mode: put the canvas in a known state without mouse events.
     func demo(selection s: CGRect?, annotations list: [Annotation], tool t: Tool?, hover: CGRect? = nil) {
         selection = s
+        picked = false
         annotations = list.map { $0.tool == .obfuscate ? pixelated($0) : $0 }
         tool = t
         hoverWindow = hover

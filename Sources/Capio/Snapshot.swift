@@ -89,6 +89,7 @@ enum Snapshot {
         let actions = HistoryActions(open: noop, reveal: noop, copyFile: noop, copyLink: noop, openLink: noop, upload: noop,
                                      pin: noop, copyText: noop, delete: noop, deleteUpload: noop, openFolder: {}, settings: {})
         try save(try await render(HistoryView(library: library, actions: actions), settle: 1.5), dir, "8-history")
+        try save(try await render(HistoryView(library: library, actions: actions, filter: .shared), settle: 1.5), dir, "8-history-public")
         try await settingsWindow(into: dir)
 
         Toast.shared.demo(.updated("0.7.1"), thumbnail: nil)
@@ -110,6 +111,7 @@ enum Snapshot {
         try save(try await render(RecordingBar(model: recording, mic: {}, camera: {}, pause: {}, stop: {})), dir, "10-recording-bar")
         try await checkGIF(into: dir)
         try checkFormats(exported, scale: scale, into: dir)
+        try checkSelecting(canvas, in: host, into: dir)
         try await checkToastPanel(into: dir)
         try "ok \(Date())\n".write(to: dir.appendingPathComponent("DONE.txt"), atomically: true, encoding: .utf8)
     }
@@ -139,6 +141,55 @@ enum Snapshot {
         Toast.shared.hide()
         try lines.joined(separator: "\n").write(to: dir.appendingPathComponent("13-toast-panel.txt"), atomically: true, encoding: .utf8)
         guard wrong.isEmpty else { throw SnapshotError("toast panel: " + wrong.joined(separator: "; ")) }
+    }
+
+    /// Real mouse events on the canvas: a drag selects, a click picks the window or the screen, and after such a click
+    /// a drag still draws a selection of one's own (it used to move the picked one, which on a whole screen does nothing).
+    static func checkSelecting(_ canvas: CanvasView, in host: NSWindow, into dir: URL) throws {
+        func mouse(_ type: NSEvent.EventType, _ p: CGPoint) throws -> NSEvent {
+            // The canvas is flipped and fills the window: window coordinates count from the bottom.
+            guard let e = NSEvent.mouseEvent(with: type, location: CGPoint(x: p.x, y: canvas.bounds.height - p.y), modifierFlags: [], timestamp: 0,
+                                             windowNumber: host.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)
+            else { throw SnapshotError("no mouse event") }
+            return e
+        }
+        func drag(_ a: CGPoint, _ b: CGPoint) throws {
+            canvas.mouseDown(with: try mouse(.leftMouseDown, a))
+            if a != b { canvas.mouseDragged(with: try mouse(.leftMouseDragged, b)) }
+            canvas.mouseUp(with: try mouse(.leftMouseUp, b))
+        }
+        var lines: [String] = []
+        var wrong: [String] = []
+        func expect(_ name: String, _ want: CGRect) {
+            lines.append("\(name): \(canvas.selection.map { "\($0)" } ?? "none")")
+            if canvas.selection != want { wrong.append("\(name): \(String(describing: canvas.selection)), wanted \(want)") }
+        }
+        let own = CGRect(x: 300, y: 200, width: 400, height: 250)
+        let inWindow = CGPoint(x: window.midX, y: window.midY)
+        let onDesktop = CGPoint(x: 6, y: canvas.bounds.height - 6)
+        guard !window.contains(onDesktop) else { throw SnapshotError("demo window covers the corner") }
+
+        canvas.demo(selection: nil, annotations: [], tool: nil)
+        try drag(own.origin, CGPoint(x: own.maxX, y: own.maxY))
+        expect("drag on a fresh overlay", own)
+        try drag(CGPoint(x: own.midX, y: own.midY), CGPoint(x: own.midX + 50, y: own.midY + 30))
+        expect("drag inside an own selection moves it", own.offsetBy(dx: 50, dy: 30))
+
+        canvas.demo(selection: nil, annotations: [], tool: nil)
+        try drag(inWindow, inWindow)
+        expect("click on a window", window)
+        try drag(own.origin, CGPoint(x: own.maxX, y: own.maxY))
+        expect("drag after a window click", own)
+
+        canvas.demo(selection: nil, annotations: [], tool: nil)
+        try drag(onDesktop, onDesktop)
+        expect("click on the desktop", canvas.bounds)
+        try drag(own.origin, CGPoint(x: own.maxX, y: own.maxY))
+        expect("drag after a whole screen click", own)
+
+        canvas.demo(selection: nil, annotations: [], tool: nil)
+        try lines.joined(separator: "\n").write(to: dir.appendingPathComponent("14-selecting.txt"), atomically: true, encoding: .utf8)
+        guard wrong.isEmpty else { throw SnapshotError("selecting: " + wrong.joined(separator: "; ")) }
     }
 
     static func settingsWindow(into dir: URL) async throws {
@@ -389,9 +440,9 @@ enum Snapshot {
             try png.write(to: Prefs.folder.appendingPathComponent(name))
             let base = CaptureRecord(fileName: name, kind: .screenshot, createdAt: date, bytes: Int64(png.count),
                                      pixelWidth: exported.width, pixelHeight: exported.height)
-            try store.add(seed.1.map { base.uploaded(link: $0, fileId: "f\(i)", shareId: "s\(i)") } ?? base)
+            try store.add(seed.1.map { base.uploaded(link: $0, fileId: "f\(i)", shareId: "s\(i)", at: date) } ?? base)
         }
-        // Thrown away in Finder: must not show in 8-history (footer stays "4 captures · 2 online").
+        // Thrown away in Finder: must not show in 8-history (footer stays "4 captures · 2 public").
         try store.add(CaptureRecord(fileName: "Capio gone.png", kind: .screenshot, createdAt: now, bytes: 1,
                                     pixelWidth: exported.width, pixelHeight: exported.height))
     }

@@ -134,6 +134,11 @@ let legacy = CaptureRecord(fileName: "Capio c.gif", kind: .gif, createdAt: t0, b
 check(legacy.uploadedAt == nil && legacy.linkExpired(now: t0.addingTimeInterval(week + 1)), "a link from before 0.5 counts from the capture date")
 check(HistoryStore.expiredLinks([shared, newer, legacy], now: t0.addingTimeInterval(week + 1)).map(\.id) == [older.id, legacy.id], "only due links are picked")
 check(shared.withoutUpload().uploadedAt == nil, "removing the link clears the upload time")
+check(HistoryStore.filter([shared, newer, legacy], kind: nil, query: "", publicOnly: true).map(\.id) == [shared.id, legacy.id], "the public filter keeps only captures with a link")
+check(shared.linkTimeLeft(now: t0.addingTimeInterval(60)) == "7 days left" && shared.linkTimeLeft(now: t0.addingTimeInterval(86_400 + 60)) == "6 days left", "a link counts its days down, rounded up")
+check(shared.linkTimeLeft(now: t0.addingTimeInterval(week - 86_400)) == "1 day left" && shared.linkTimeLeft(now: t0.addingTimeInterval(week - 3 * 3_600)) == "3 hours left"
+    && shared.linkTimeLeft(now: t0.addingTimeInterval(week - 60)) == "1 hour left", "the last day counts in hours")
+check(shared.linkTimeLeft(now: t0.addingTimeInterval(week + 1)) == "Ends soon" && newer.linkTimeLeft(now: t0) == nil, "a due link ends soon, a local capture has no time left")
 let stamped = legacy.stampingLegacyLink(t0.addingTimeInterval(30 * 86_400))
 check(stamped.uploadedAt == t0.addingTimeInterval(30 * 86_400) && !stamped.linkExpired(now: t0.addingTimeInterval(31 * 86_400)), "a 0.4 link gets its own week once 0.5 starts")
 check(shared.stampingLegacyLink(t0.addingTimeInterval(99)).uploadedAt == t0 && older.stampingLegacyLink(t0).uploadedAt == nil, "stamping leaves new links and local captures alone")

@@ -21,14 +21,21 @@ struct HistoryActions {
 }
 
 struct HistoryView: View {
-    enum Filter: Hashable { case all, kind(CaptureKind) }
+    /// `shared`: only captures with a public link.
+    enum Filter: Hashable { case all, kind(CaptureKind), shared }
     enum Sort: String, CaseIterable { case date = "Date", size = "Size" }
 
     @ObservedObject var library: Library
     let actions: HistoryActions
     @State private var query = ""
-    @State private var filter: Filter = .all
+    @State private var filter: Filter
     @State private var sort: Sort = .date
+
+    init(library: Library, actions: HistoryActions, filter: Filter = .all) {
+        self.library = library
+        self.actions = actions
+        _filter = State(initialValue: filter)
+    }
 
     /// Only captures still in the folder. Hidden, not forgotten: a file put back (Trash, other folder, drive) shows again,
     /// and a link on a hidden capture still comes down after its week.
@@ -37,7 +44,7 @@ struct HistoryView: View {
 
     private var items: [CaptureRecord] {
         let kind: CaptureKind? = { if case .kind(let k) = filter { return k }; return nil }()
-        let found = HistoryStore.filter(onDisk, kind: kind, query: query)
+        let found = HistoryStore.filter(onDisk, kind: kind, query: query, publicOnly: filter == .shared)
         return sort == .size ? found.sorted { $0.bytes > $1.bytes } : found
     }
 
@@ -65,6 +72,7 @@ struct HistoryView: View {
                 Text("Screenshots").tag(Filter.kind(.screenshot))
                 Text("Screencasts").tag(Filter.kind(.screencast))
                 Text("GIFs").tag(Filter.kind(.gif))
+                Text("Public").tag(Filter.shared)
             }
             .pickerStyle(.segmented).labelsHidden().padding(.horizontal, 12).padding(.bottom, 10)
 
@@ -98,16 +106,18 @@ struct HistoryView: View {
 
     private var summary: String {
         let shown = onDisk
-        let online = shown.filter { $0.link != nil }.count
-        return "\(shown.count) captures · \(online) online"
+        let shared = shown.filter { $0.link != nil }.count
+        return "\(shown.count) captures · \(shared) public"
     }
 
     private var empty: some View {
         VStack(spacing: 10) {
             Spacer()
             Image(nsImage: Theme.appIcon).resizable().frame(width: 44, height: 44).opacity(0.9)
-            Text(query.isEmpty ? "No captures yet" : "Nothing matches “\(query)”").font(.system(size: 14, weight: .semibold))
-            Text(query.isEmpty ? "Press ⌃⌘2 and drag over what you want to capture." : "Search looks in names, links and the text in your screenshots.")
+            let nothingPublic = query.isEmpty && filter == .shared
+            Text(nothingPublic ? "Nothing is public" : query.isEmpty ? "No captures yet" : "Nothing matches “\(query)”").font(.system(size: 14, weight: .semibold))
+            Text(nothingPublic ? "Right click a capture and choose Create External Link to share it."
+                : query.isEmpty ? "Press ⌃⌘2 and drag over what you want to capture." : "Search looks in names, links and the text in your screenshots.")
                 .font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(width: 260)
             Spacer()
         }
@@ -177,13 +187,26 @@ struct Tile: View {
                             .padding(.horizontal, 5).frame(height: 16).background(Color.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 4)).padding(6)
                     }
                 }
+                .overlay(alignment: .topTrailing) {
+                    if record.link != nil {
+                        HStack(spacing: 3) {
+                            Image(systemName: "link").font(.system(size: 8.5, weight: .bold))
+                            Text("Public").font(.system(size: 10.5, weight: .semibold))
+                        }
+                        .foregroundStyle(.white).padding(.horizontal, 6).frame(height: 17)
+                        .background(Theme.accentColor, in: RoundedRectangle(cornerRadius: 4))
+                        .shadow(color: .black.opacity(0.3), radius: 1.5, y: 1).padding(6)
+                        .accessibilityLabel("Public link")
+                    }
+                }
                 .overlay(shape.stroke(hover ? Theme.accentColor : Color.black.opacity(0.2), lineWidth: hover ? 2.5 : 0.5))
 
             HStack(spacing: 4) {
                 Text(when).lineLimit(1)
                 Spacer(minLength: 0)
-                if record.link != nil {
-                    Image(systemName: "link").font(.system(size: 10.5, weight: .bold)).foregroundStyle(Theme.accentColor).help("Uploaded")
+                if let left = record.linkTimeLeft(now: Date()) {
+                    Text(left).font(.system(size: 11.5, weight: .medium)).foregroundStyle(Theme.accentColor).lineLimit(1)
+                        .help("The public link ends by itself a week after it was made")
                 }
             }
             .font(.system(size: 12)).foregroundStyle(.secondary)
